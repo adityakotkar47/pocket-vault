@@ -1,0 +1,24 @@
+{
+  "name": "pocket-vault",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "catalog": {
+    "better-auth": "latest",
+    "hono": "latest",
+    "prisma": "^7",
+    "@prisma/client": "^7",
+    "@prisma/adapter-pg": "latest",
+    "pg": "^8",
+    "dotenv": "^16",
+    "zod": "^3",
+    "typescript": "^5"
+  },
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '@pocketvault/api' test",
+    "db:migrate": "bun run --filter '@pocketvault/db' migrate",
+    "db:generate": "bun run --filter '@pocketvault/db' generate",
+    "db:studio": "bun run --filter '@pocketvault/db' studio"
+  }
+}

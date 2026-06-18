@@ -1,0 +1,26 @@
+node_modules
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+packages/db/src/generated
+
+# Next.js
+apps/web/.next
+apps/web/out
+
+# Build outputs
+dist
+build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

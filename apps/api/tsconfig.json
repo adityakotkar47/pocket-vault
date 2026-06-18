@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "paths": {
+      "@pocketvault/db": ["../../packages/db/src/client.ts"]
+    }
+  },
+  "include": ["src"]
+}

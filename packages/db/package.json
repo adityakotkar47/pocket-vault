@@ -1,0 +1,22 @@
+{
+  "name": "@pocketvault/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/client.ts"
+  },
+  "scripts": {
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "prisma": "^7",
+    "@prisma/client": "^7",
+    "@prisma/adapter-pg": "latest",
+    "pg": "^8",
+    "dotenv": "^16"
+  }
+}
