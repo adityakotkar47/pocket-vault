@@ -24,3 +24,6 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
+
+# Cursor
+.cursor/
