@@ -15,10 +15,17 @@
   },
   "scripts": {
     "dev": "bun run --filter '*' dev",
+    "dev:api": "bun run --filter '@pocketvault/api' dev",
+    "dev:web": "bun run --filter '@pocketvault/web' dev",
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '@pocketvault/api' test",
+    "lint": "bun run lint:web && bun run lint:api",
+    "lint:web": "bun run --filter '@pocketvault/web' lint",
+    "lint:api": "bun run --filter '@pocketvault/api' lint",
     "db:migrate": "bun run --filter '@pocketvault/db' migrate",
+    "db:migrate:deploy": "bun run --filter '@pocketvault/db' migrate:deploy",
     "db:generate": "bun run --filter '@pocketvault/db' generate",
-    "db:studio": "bun run --filter '@pocketvault/db' studio"
+    "db:studio": "bun run --filter '@pocketvault/db' studio",
+    "db:seed": "bun run --filter '@pocketvault/api' seed"
   }
 }
