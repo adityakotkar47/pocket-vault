@@ -1,12 +1,10 @@
-import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
-
-export default defineConfig({
+// DATABASE_URL is injected by Bun's automatic .env loading before this runs.
+export default {
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    url: process.env.DATABASE_URL,
   },
-});
+};

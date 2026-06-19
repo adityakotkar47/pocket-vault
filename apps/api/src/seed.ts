@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 // Importing the db client first runs dotenv/config, so env vars are loaded
 // before ./lib/auth.js evaluates its required-env checks.
-import { prisma } from "@pocketvault/db";
+import { prisma, withOrgContext } from "@pocketvault/db";
 import { auth } from "./lib/auth.js";
 import { parseTransaction } from "./lib/parser.js";
 
@@ -60,24 +60,26 @@ async function seed() {
       const parsed = parseTransaction(rawText);
       if (parsed.amount === null) continue;
 
-      await prisma.transaction.upsert({
-        where: { organizationId_rawHash: { organizationId, rawHash } },
-        update: {},
-        create: {
-          organizationId,
-          userId: user.id,
-          date: parsed.date ?? new Date(),
-          description: parsed.description ?? "Unknown transaction",
-          amount: parsed.amount,
-          currency: parsed.currency,
-          type: parsed.type ?? "DEBIT",
-          balanceAfter: parsed.balanceAfter,
-          category: parsed.category,
-          rawText,
-          rawHash,
-          confidence: parsed.confidence,
-        },
-      });
+      await withOrgContext(organizationId, (tx) =>
+        tx.transaction.upsert({
+          where: { organizationId_rawHash: { organizationId, rawHash } },
+          update: {},
+          create: {
+            organizationId,
+            userId: user.id,
+            date: parsed.date ?? new Date(),
+            description: parsed.description ?? "Unknown transaction",
+            amount: parsed.amount!,
+            currency: parsed.currency,
+            type: parsed.type ?? "DEBIT",
+            balanceAfter: parsed.balanceAfter,
+            category: parsed.category,
+            rawText,
+            rawHash,
+            confidence: parsed.confidence,
+          },
+        }),
+      );
     }
 
     console.log(`  ✓ ${u.email} → org ${organizationId} (${SAMPLE_TEXTS.length} transactions)`);

@@ -1,18 +1,21 @@
 # PocketVault
 
-A production-realistic, multi-tenant personal finance transaction extractor built as a Bun monorepo. Paste raw bank-statement text, get back a structured, deduplicated, organization-scoped transaction with a confidence score.
+A production-realistic, multi-tenant personal finance transaction extractor. Paste raw bank-statement text and get back a structured, deduplicated, organization-scoped transaction with a confidence score.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Runtime / Package Manager | Bun 1.3+ (workspaces monorepo) |
-| Backend | Hono (TypeScript) |
-| Database | PostgreSQL 16 + Prisma 7 ORM (driver adapter: `@prisma/adapter-pg`) |
-| Auth (Backend) | Better Auth — email/password + organizations/teams + JWT (ES256) + bearer plugins |
+| Backend | Hono (TypeScript) on Bun |
+| Database | PostgreSQL + Prisma ORM |
+| Auth (Backend) | Better Auth — email/password + organizations + JWT (ES256) plugins |
 | Auth (Frontend) | Auth.js (NextAuth v5) — Credentials provider synced to the Better Auth JWT |
 | Frontend | Next.js 15 App Router + Server Components + shadcn/ui + Tailwind CSS |
-| Tests | Jest + ts-jest (24 tests: parsing, auth, isolation) |
+| Tests | Jest (parsing + auth + isolation) |
+
+## Better Auth Integration (Isolation & Scalability)
+
+Better Auth is the system of record: it owns users, scrypt-hashed passwords, and a personal **organization** provisioned per user via a `user.create` hook. Every transaction is scoped by the `organizationId` baked into the **verified ES256 JWT claim** at mint time — never from request input — so a forged or swapped token cannot widen access. Auth is **stateless** (JWTs verified via JWKS, zero per-request DB hits), and isolation is enforced at three layers: the JWT claim, the Prisma `where organizationId` filter, and a Postgres Row-Level Security policy.
 
 ## Repository Structure
 
@@ -22,114 +25,91 @@ pocket-vault/
 │   ├── api/          # Hono + Better Auth + parser + seed + tests
 │   └── web/          # Next.js 15 + Auth.js + shadcn/ui
 └── packages/
-    └── db/           # Prisma 7 schema + generated client + migrations
+    └── db/           # Prisma schema + generated client + migrations
 ```
 
-## Auth Architecture
-
-Better Auth (on the Hono API) is the system of record — it owns users, organizations, hashed passwords (scrypt), and mints **7-day ES256 JWTs**. Auth.js is a thin session broker on the Next.js side.
-
-**Why ES256?** Better Auth's default JWT algorithm is EdDSA, which the `hono/jwk` verification middleware does not verify reliably. The JWT plugin is therefore configured with `keyPairConfig: { alg: "ES256" }`, and the verification middleware declares `alg: ["ES256"]`.
-
-**Login flow (`authorize()` in the Credentials provider):**
-
-1. `POST /api/auth/sign-in/email` → returns a Better Auth **session token**.
-2. `GET /api/auth/token` with `Authorization: Bearer <session token>` → exchanges it for the **ES256 JWT** (this is the token sent on every API call).
-3. The JWT payload (`userId`, `organizationId`, `exp`) is decoded and stored, along with `accessToken`, in the Auth.js JWT cookie via the `jwt()` callback.
-4. The `session()` callback exposes `session.accessToken` to Server Components.
-5. Frontend Server Actions call the API with `Authorization: Bearer <ES256 JWT>`.
-6. The Hono API verifies the token statelessly via JWKS (`GET /api/auth/jwks`) — **zero per-request DB hits**.
-
-Registration (`POST /api/auth/sign-up/email`) triggers a Better Auth `user.create` hook that provisions a personal organization (+ owner membership) and stores its id on the user.
-
-## Data Isolation
-
-Every transaction query is scoped by the `organizationId` taken from the **verified JWT claim** — never from request input. A forged or swapped Bearer token cannot widen access, because the `organizationId` is set at JWT mint time from the user's own record. The `Transaction` table also has a `@@unique([organizationId, rawHash])` constraint, so deduplication is **per-organization** (two different orgs can hold the same raw text). This is covered directly by the isolation tests.
-
-## Prerequisites
-
-- [Bun](https://bun.sh) >= 1.3
-- [Docker](https://docker.com) (for local Postgres)
-- Node.js >= 20 (Jest runs under Node with `--experimental-vm-modules`)
-
-## Local Setup
+## Setup
 
 ```bash
-# 1. Clone and install
-git clone <repo-url>
-cd pocket-vault
+# 1. Install
 bun install
 
 # 2. Start Postgres
 docker compose up -d
 
-# 3. Copy env files and fill in secrets (generate with: openssl rand -base64 32)
+# 3. Create env files (see .env.example values below)
 cp apps/api/.env.example      apps/api/.env
 cp apps/web/.env.example      apps/web/.env.local
 cp packages/db/.env.example   packages/db/.env
+# Generate secrets with: openssl rand -base64 32
 
-# 4. Run migrations + generate the Prisma client
+# 4. Migrate + seed two test users
 bun run db:migrate
-
-# 5. Seed two test users (each with their own org + 3 sample transactions)
 bun run db:seed
 
-# 6. Start both apps
+# 5. Run both apps
 bun dev
 ```
 
 API → http://localhost:3001 · Web → http://localhost:3000
 
+Run backend only: `bun dev:api` · Run frontend only: `bun dev:web`
+
 ## Environment Variables
 
-**`apps/api/.env`**
+JWT signing keys are **auto-generated** by Better Auth (ES256 keypair stored as JWKS in the DB) — there are no key env vars to manage.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Postgres connection string |
-| `BETTER_AUTH_SECRET` | Better Auth signing/session secret |
-| `BETTER_AUTH_URL` | Public base URL of the API (used for JWKS + token issuer) |
-| `WEB_ORIGIN` | Allowed CORS origin / trusted origin (the web app URL) |
-| `PORT` | API port (default 3001) |
+**`apps/api/.env`**
+```env
+DATABASE_URL="postgresql://pocketvault:pocketvault@localhost:5432/pocketvault"
+BETTER_AUTH_SECRET="<openssl rand -base64 32>"
+BETTER_AUTH_URL="http://localhost:3001"   # public API base URL (JWKS issuer)
+WEB_ORIGIN="http://localhost:3000"        # CORS / trusted origin
+PORT=3001
+```
 
 **`apps/web/.env.local`**
-
-| Variable | Purpose |
-|---|---|
-| `AUTH_SECRET` | Auth.js cookie encryption secret |
-| `AUTH_TRUST_HOST` | `true` (required for Auth.js behind a host) |
-| `AUTH_URL` | Public base URL of the web app (also sent as `Origin` to Better Auth) |
-| `API_URL` | Base URL of the Hono API (used by Server Actions) |
+```env
+AUTH_SECRET="<openssl rand -base64 32>"   # different from BETTER_AUTH_SECRET
+AUTH_TRUST_HOST=true
+AUTH_URL="http://localhost:3000"
+API_URL="http://localhost:3001"
+```
 
 **`packages/db/.env`**
+```env
+DATABASE_URL="postgresql://pocketvault:pocketvault@localhost:5432/pocketvault"
+```
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Used by Prisma CLI for migrations/generate |
+All variables are required — the apps fail fast at boot if any is missing.
 
-> All of the above are **required** — the apps fail fast at boot if any is missing (no silent localhost fallbacks).
-
-## Test Users (after `bun run db:seed`)
+## Test Users (created by `bun run db:seed`)
 
 | Email | Password |
 |---|---|
 | alice@pocketvault.local | `password123` |
 | bob@pocketvault.local | `password123` |
 
-Both are created through Better Auth's real `signUpEmail` API, so they log in exactly like a normal user and sit in separate organizations (useful for demonstrating isolation).
+Both are created through Better Auth's real `signUpEmail`, sit in **separate organizations**, and come pre-seeded with the three sample transactions — useful for demonstrating data isolation (log in as one, you can never see the other's rows).
 
-## Running Tests
+## API Endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/register` | — | Register (email + password, scrypt-hashed) |
+| POST | `/api/auth/login` | — | Sign in → 7-day ES256 JWT (`{ token, user, expiresIn }`) |
+| GET | `/api/auth/jwks` | — | Public keys for JWT verification |
+| POST | `/api/transactions/extract` | Bearer JWT | Parse text + save transaction (org-scoped, deduped) |
+| GET | `/api/transactions?cursor=&limit=` | Bearer JWT | Cursor-paginated list (org-scoped) |
+| GET | `/health` | — | Health check |
+
+## Tests
 
 ```bash
-bun run test          # from the repo root (runs the Jest suite via the api workspace)
+bun run test
 ```
 
-24 tests across three suites:
-- **Parsing + confidence** (`parser.test.ts`) — all three sample formats + confidence scoring.
-- **Auth** (`auth.test.ts`) — the JWKS bearer middleware rejects missing / malformed / wrong-scheme tokens (401).
-- **Isolation** (`isolation.test.ts`) — org-scoped queries never leak across organizations; per-org dedupe.
-
-> Jest runs under Node with `NODE_OPTIONS=--experimental-vm-modules` (wired via `cross-env`) because the Prisma client is generated as an ES module.
+Covers the three required areas: **parsing + confidence** (all three sample formats), **auth** (JWKS bearer middleware rejects missing/malformed/wrong-scheme tokens), and **isolation** (org-scoped queries never leak across organizations; per-org dedupe).
 
 ## Sample Texts (all three parse)
 
@@ -139,65 +119,34 @@ Description: STARBUCKS COFFEE MUMBAI
 Amount: -420.00
 Balance after transaction: 18,420.50
 ```
-
 ```
 Uber Ride * Airport Drop
 12/11/2025 → ₹1,250.00 debited
 Available Balance → ₹17,170.50
 ```
-
 ```
 txn123 2025-12-10 Amazon.in Order #403-1234567-8901234 ₹2,999.00 Dr Bal 14171.50 Shopping
 ```
 
-## API Endpoints
+## Bonus Features
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/api/auth/sign-up/email` | — | Register (Better Auth) |
-| POST | `/api/auth/sign-in/email` | — | Sign in → Better Auth session token |
-| GET | `/api/auth/token` | Bearer session token | Exchange session token for a 7-day ES256 JWT |
-| GET | `/api/auth/jwks` | — | Public keys for JWT verification |
-| POST | `/api/transactions/extract` | Bearer JWT | Parse text + save transaction (org-scoped, deduped) |
-| GET | `/api/transactions?cursor=&limit=` | Bearer JWT | Cursor-paginated list (org-scoped) |
-| GET | `/health` | — | Health check |
-
-> The rubric lists `/api/auth/register` and `/api/auth/login`; this project uses Better Auth's native endpoints (`sign-up/email`, `sign-in/email`) instead of hand-rolled wrappers.
-
-## Scalability Notes
-
-- **Cursor pagination** on `GET /api/transactions` using a composite `createdAt_id` cursor (stable under inserts) and an `@@index([organizationId, createdAt, id])`.
-- **Stateless auth** — JWTs verified via JWKS, so no session lookup per request.
-- **Rate limiting** (bonus) via [`hono-rate-limiter`](https://github.com/rhinobase/hono-rate-limiter), emitting standard `RateLimit-*` headers and a JSON `429`:
-  - `/api/auth/register` + `/api/auth/login` — keyed by client IP (`x-forwarded-for`), 10/min, to blunt signup spam and credential stuffing.
-  - `/api/transactions/extract` — keyed by the authenticated `userId` from the JWT (organisation-isolated), 30/min.
-  - Note: the default store is in-memory (resets on restart, per-instance). `hono-rate-limiter` supports external stores (e.g. Redis) as a drop-in for horizontal scaling.
+- **Confidence score** — each parse returns a 0–1 score based on which fields (date, amount, description, balance) were extracted.
+- **Rate limiting** (`hono-rate-limiter`) — `/api/auth/*` keyed by IP (10/min); `/api/transactions/extract` keyed by authenticated `userId` (30/min).
+- **Row-Level Security** — the `transaction` table has a Postgres RLS policy (`org_isolation`) with `FORCE ROW LEVEL SECURITY`; all queries run through `withOrgContext(orgId, fn)` which sets a transaction-local `app.organization_id` that the policy filters on. DB-level isolation complementing the application-layer checks.
+- **Scalability** — cursor pagination (composite `createdAt_id` cursor), `@@index([organizationId, createdAt, id])`, stateless JWT auth.
 
 ## Deployment
 
-### Backend → Railway (Dockerfile)
+**Backend → Railway (Dockerfile)**
+1. New project → Deploy from GitHub repo.
+2. Build method: **Dockerfile** → `apps/api/Dockerfile` (root context). On start it runs `prisma migrate deploy` and idempotently seeds the test users, then starts the server — no manual steps.
+3. Add Postgres, then set: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (the public API URL), `WEB_ORIGIN` (the Vercel URL).
 
-1. New Railway project → **Deploy from GitHub repo**.
-2. Build method: **Dockerfile** → `apps/api/Dockerfile` (root context). Migrations run automatically on container start.
-3. Add a Postgres database (Railway plugin / Neon / Supabase) and copy its connection string.
-4. Set environment variables:
+**Frontend → Vercel**
+1. Import repo, set **Root Directory** to `apps/web`.
+2. Set: `AUTH_SECRET`, `AUTH_TRUST_HOST=true`, `AUTH_URL` (the Vercel URL), `API_URL` (the Railway URL).
 
-| Variable | Value |
+| Deployment | URL |
 |---|---|
-| `DATABASE_URL` | Postgres connection string |
-| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | `https://your-api.up.railway.app` |
-| `WEB_ORIGIN` | `https://your-app.vercel.app` |
-| `PORT` | `3001` |
-
-### Frontend → Vercel
-
-1. Import the repo, set **Root Directory** to `apps/web`.
-2. Set environment variables:
-
-| Variable | Value |
-|---|---|
-| `AUTH_SECRET` | `openssl rand -base64 32` (different from `BETTER_AUTH_SECRET`) |
-| `AUTH_TRUST_HOST` | `true` |
-| `AUTH_URL` | `https://your-app.vercel.app` |
-| `API_URL` | `https://your-api.up.railway.app` |
+| Frontend (Vercel) | https://pocket-vault-vessify.vercel.app |
+| Backend (Railway) | https://pocket-vault-vessify.up.railway.app |

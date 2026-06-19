@@ -81,9 +81,13 @@ app.route("/api/transactions", transactionRoutes);
 app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
 
 const PORT = Number(process.env.PORT ?? 3001);
+const HOST = process.env.HOST ?? "0.0.0.0";
 
-Bun.serve({ fetch: app.fetch, port: PORT });
-console.log(`API running on http://localhost:${PORT}`);
+Bun.serve({ 
+  fetch: app.fetch, 
+  port: PORT,
+  hostname: HOST,
+});
+console.log(`API running on http://${HOST}:${PORT}`);
 
-export default app;
 export type AppType = typeof app;

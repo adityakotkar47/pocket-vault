@@ -7,9 +7,10 @@ COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
 
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy source
+COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY packages/db ./packages/db
 
@@ -24,7 +25,5 @@ ENV NODE_ENV=production
 
 COPY --from=builder /app ./
 
-EXPOSE 3001
-
-# Run migrations then start server
-CMD ["sh", "-c", "cd packages/db && bun x prisma migrate deploy && cd /app && bun run apps/api/src/index.ts"]
+# Run migrations, seed test users (idempotent, non-fatal), then start server
+CMD ["sh", "-c", "cd packages/db && bun x prisma migrate deploy && cd /app && (bun run apps/api/src/seed.ts || true) && exec bun run apps/api/src/index.ts"]

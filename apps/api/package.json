@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "bun run src/index.ts",
-    "start:prod": "cd ../../packages/db && bun x prisma migrate deploy && cd - && bun run src/index.ts",
+    "start:prod": "cd ../../packages/db && bun x prisma migrate deploy && cd - && (bun run src/seed.ts || echo 'Seed step failed, continuing') && bun run src/index.ts",
     "seed": "bun run src/seed.ts",
     "lint": "tsc --noEmit",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"

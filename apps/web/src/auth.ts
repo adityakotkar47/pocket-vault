@@ -71,7 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: String(credentials.email),
             name: data.user?.name ?? String(credentials.email).split("@")[0],
             accessToken: jwt,
-            orgId: payload.organizationId ?? null,
+            orgId: payload.organizationId ?? undefined,
             accessTokenExpires: payload.exp
               ? payload.exp * 1000
               : Date.now() + 7 * 24 * 60 * 60 * 1000,
