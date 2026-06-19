@@ -10,7 +10,9 @@
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "studio": "prisma studio",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "seed": "bun run prisma/seed.ts",
+    "migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "prisma": "^7",
