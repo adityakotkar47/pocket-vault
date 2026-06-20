@@ -8,7 +8,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
 
@@ -86,7 +93,10 @@ export default function LoginPage() {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               No account?{" "}
-              <Link href="/register" className="underline underline-offset-4 hover:text-primary">
+              <Link
+                href="/register"
+                className="underline underline-offset-4 hover:text-primary"
+              >
                 Create one
               </Link>
             </p>

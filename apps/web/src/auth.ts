@@ -2,10 +2,15 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "./auth.config";
 import { requireEnv } from "./lib/env";
+import {
+  parseJwtPayload,
+  calculateTokenExpiry,
+  JwtParseError,
+} from "./lib/jwt-utils";
+import { AUTH_CONSTANTS } from "@pocketvault/api/src/lib/constants";
 
-// Surfaces the API's 429 distinctly so the login page can show a rate-limit
-// message instead of the generic "invalid credentials" one. The `code` is
-// propagated to the client via the signIn() result.
+const SESSION_MAX_AGE = AUTH_CONSTANTS.SESSION_MAX_AGE_SECONDS;
+
 class RateLimitError extends CredentialsSignin {
   code = "rate_limited";
 }
@@ -14,7 +19,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: SESSION_MAX_AGE,
   },
   providers: [
     Credentials({
@@ -28,12 +33,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const API_URL = requireEnv("API_URL");
 
         try {
-          // Single call: the API's /login wrapper authenticates and returns the
-          // 7-day ES256 JWT we send on every subsequent request.
           const res = await fetch(`${API_URL}/api/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
           });
 
           if (res.status === 429) {
@@ -56,29 +62,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null;
           }
 
-          // Decode payload (no verification needed here — API verifies via JWKS)
-          const parts = jwt.split(".");
-          if (parts.length !== 3) return null;
-          const rawPayload = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
-          const payload = JSON.parse(Buffer.from(rawPayload, "base64").toString("utf-8")) as {
-            userId?: string;
-            organizationId?: string;
-            exp?: number;
-          };
+          try {
+            const payload = parseJwtPayload(jwt);
 
-          return {
-            id: payload.userId ?? data.user?.id ?? "",
-            email: String(credentials.email),
-            name: data.user?.name ?? String(credentials.email).split("@")[0],
-            accessToken: jwt,
-            orgId: payload.organizationId ?? undefined,
-            accessTokenExpires: payload.exp
-              ? payload.exp * 1000
-              : Date.now() + 7 * 24 * 60 * 60 * 1000,
-          };
+            return {
+              id: payload.userId,
+              email: String(credentials.email),
+              name: data.user?.name ?? String(credentials.email).split("@")[0],
+              accessToken: jwt,
+              orgId: payload.organizationId,
+              accessTokenExpires: calculateTokenExpiry(payload.exp, 7),
+            };
+          } catch (error) {
+            if (error instanceof JwtParseError) {
+              console.error("[authorize] JWT parse error:", error.message);
+            }
+            return null;
+          }
         } catch (err) {
-          // Let intentional sign-in errors (e.g. rate limiting) propagate so
-          // their `code` reaches the client; only swallow unexpected ones.
           if (err instanceof CredentialsSignin) throw err;
           console.error("[authorize] Unexpected error:", err);
           return null;

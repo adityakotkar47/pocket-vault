@@ -11,16 +11,18 @@ export const metadata: Metadata = {
   description: "Personal finance transaction extractor",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) inject
           data-* attributes onto <body> before React hydrates. This only
           silences attribute diffs on this single node, not the app tree. */}
       <body className={geist.className} suppressHydrationWarning>
-        <SessionProvider>
-          {children}
-        </SessionProvider>
+        <SessionProvider>{children}</SessionProvider>
         <Toaster />
       </body>
     </html>

@@ -8,7 +8,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { registerUser } from "@/app/actions";
 
 export default function RegisterPage() {
@@ -19,7 +26,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
 
@@ -41,7 +48,10 @@ export default function RegisterPage() {
 
       toast.success("Account created! Redirecting…");
       setDone(true);
-      setTimeout(() => { router.push("/"); router.refresh(); }, 1200);
+      setTimeout(() => {
+        router.push("/");
+        router.refresh();
+      }, 1200);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -97,11 +107,18 @@ export default function RegisterPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
             <Button type="submit" className="w-full" disabled={loading || done}>
-              {done ? "Redirecting…" : loading ? "Creating account…" : "Create account"}
+              {done
+                ? "Redirecting…"
+                : loading
+                  ? "Creating account…"
+                  : "Create account"}
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               Already have an account?{" "}
-              <Link href="/login" className="underline underline-offset-4 hover:text-primary">
+              <Link
+                href="/login"
+                className="underline underline-offset-4 hover:text-primary"
+              >
                 Sign in
               </Link>
             </p>

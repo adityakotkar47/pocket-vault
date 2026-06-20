@@ -1,29 +1,29 @@
-# syntax=docker/dockerfile:1
+# ── Stage 1: Builder ─────────────────────────────────────────────────────────
+# Build application with all dependencies
 FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
-# Copy workspace manifests first for layer caching
 COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
+COPY packages/db/prisma ./packages/db/prisma
 
-RUN bun install
+ENV DATABASE_URL="postgresql://x:x@localhost:5432/x"
 
-# Copy source
+RUN bun install --no-frozen-lockfile
+
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
-COPY packages/db ./packages/db
+COPY packages/db/src ./packages/db/src
+COPY packages/db/prisma.config.ts ./packages/db/
 
-# Generate Prisma client (dummy URL — generate only reads schema, never connects)
-ENV DATABASE_URL="postgresql://x:x@localhost:5432/x"
-RUN cd packages/db && bun x prisma generate
-
-# ── Runtime ──────────────────────────────────────────────────────────────────
-FROM oven/bun:1-alpine
+# ── Stage 2: Runner ──────────────────────────────────────────────────────────
+# Production runtime with minimal footprint
+FROM oven/bun:1-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
 
 COPY --from=builder /app ./
 
-# Run migrations, seed test users (idempotent, non-fatal), then start server
 CMD ["sh", "-c", "cd packages/db && bun x prisma migrate deploy && cd /app && (bun run apps/api/src/seed.ts || true) && exec bun run apps/api/src/index.ts"]

@@ -1,11 +1,8 @@
 import { createHash } from "crypto";
-// Importing the db client first runs dotenv/config, so env vars are loaded
-// before ./lib/auth.js evaluates its required-env checks.
 import { prisma, withOrgContext } from "@pocketvault/db";
 import { auth } from "./lib/auth.js";
 import { parseTransaction } from "./lib/parser.js";
 
-// Seeded users share one password for easy local testing / demo.
 const PASSWORD = "password123";
 
 const USERS = [
@@ -35,8 +32,6 @@ async function ensureUser(email: string, name: string) {
     return existing;
   }
 
-  // Go through Better Auth so the password is hashed identically to a real
-  // signup and the user.create hook provisions the organization.
   await auth.api.signUpEmail({ body: { email, password: PASSWORD, name } });
 
   const created = await prisma.user.findFirst({ where: { email } });
@@ -50,7 +45,8 @@ async function seed() {
 
   for (const u of USERS) {
     const user = await ensureUser(u.email, u.name);
-    const organizationId = (user as { organizationId?: string | null }).organizationId;
+    const organizationId = (user as { organizationId?: string | null })
+      .organizationId;
     if (!organizationId) {
       throw new Error(`No organization provisioned for ${u.email}`);
     }
@@ -82,10 +78,14 @@ async function seed() {
       );
     }
 
-    console.log(`  ✓ ${u.email} → org ${organizationId} (${SAMPLE_TEXTS.length} transactions)`);
+    console.log(
+      `  ✓ ${u.email} → org ${organizationId} (${SAMPLE_TEXTS.length} transactions)`,
+    );
   }
 
-  console.log(`✅  Seed complete. Log in with any seeded email + password "${PASSWORD}".`);
+  console.log(
+    `✅  Seed complete. Log in with any seeded email + password "${PASSWORD}".`,
+  );
   await prisma.$disconnect();
 }
 

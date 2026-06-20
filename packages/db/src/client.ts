@@ -3,8 +3,17 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client.js";
 
 export * from "./generated/prisma/client.js";
+export type {
+  TransactionData,
+  ExtractResult,
+  ListResult,
+  JwtPayload,
+  CursorParts,
+} from "./types.js";
 
-const globalForPrisma = globalThis as unknown as { prisma: InstanceType<typeof PrismaClient> };
+const globalForPrisma = globalThis as unknown as {
+  prisma: InstanceType<typeof PrismaClient>;
+};
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -45,8 +54,7 @@ export async function withOrgContext<T>(
     throw new Error("withOrgContext requires a non-empty organizationId");
   }
   return prisma.$transaction(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (tx as any).$executeRaw`SELECT set_config('app.organization_id', ${organizationId}, TRUE)`;
+    await tx.$executeRaw`SELECT set_config('app.organization_id', ${organizationId}, TRUE)`;
     return fn(tx as unknown as ITXClient);
   });
 }

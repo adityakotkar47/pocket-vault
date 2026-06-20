@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
+import type { TransactionData } from "@pocketvault/db";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -17,20 +18,11 @@ import {
 } from "@/components/ui/table";
 import { extractTransaction, listTransactions } from "@/app/actions";
 
-type Transaction = {
-  id: string;
-  date: string;
-  description: string;
-  amount: string;
-  currency: string;
-  type: "DEBIT" | "CREDIT";
-  balanceAfter: string | null;
-  category: string | null;
-  confidence: number;
-  createdAt: string;
-};
-
-function formatAmount(amount: string, currency: string, type: "DEBIT" | "CREDIT") {
+function formatAmount(
+  amount: string,
+  currency: string,
+  type: "DEBIT" | "CREDIT",
+) {
   const num = parseFloat(amount);
   const formatted = new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -59,28 +51,33 @@ function formatDate(dateStr: string) {
 
 export function Dashboard({ accessToken }: { accessToken: string }) {
   const [rawText, setRawText] = useState("");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isParsing, startParsing] = useTransition();
   const [isLoading, startLoading] = useTransition();
 
-  async function handleLoad(cursor?: string) {
-    startLoading(async () => {
-      try {
-        const result = await listTransactions(accessToken, cursor);
-        if (cursor) {
-          setTransactions((prev) => [...prev, ...result.data]);
-        } else {
-          setTransactions(result.data);
+  const handleLoad = useCallback(
+    async (cursor?: string) => {
+      startLoading(async () => {
+        try {
+          const result = await listTransactions(accessToken, cursor);
+          if (cursor) {
+            setTransactions((prev) => [...prev, ...result.data]);
+          } else {
+            setTransactions(result.data);
+          }
+          setNextCursor(result.nextCursor);
+          setHasMore(result.hasMore);
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : "Failed to load transactions",
+          );
         }
-        setNextCursor(result.nextCursor);
-        setHasMore(result.hasMore);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to load transactions");
-      }
-    });
-  }
+      });
+    },
+    [accessToken, startLoading],
+  );
 
   async function handleExtract() {
     if (!rawText.trim()) {
@@ -93,7 +90,9 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
         if (result.duplicate) {
           toast.info("Duplicate transaction — already saved");
         } else {
-          toast.success(`Saved! Confidence: ${Math.round(result.confidence * 100)}%`);
+          toast.success(
+            `Saved! Confidence: ${Math.round(result.confidence * 100)}%`,
+          );
           setTransactions((prev) => [result.data, ...prev]);
         }
         setRawText("");
@@ -105,15 +104,18 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
 
   useEffect(() => {
     handleLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleLoad]);
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">PocketVault</h1>
-          <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
             Sign out
           </Button>
         </div>
@@ -132,7 +134,11 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
             />
-            <Button onClick={handleExtract} disabled={isParsing} className="w-full sm:w-auto">
+            <Button
+              onClick={handleExtract}
+              disabled={isParsing}
+              className="w-full sm:w-auto"
+            >
               {isParsing ? "Parsing & saving…" : "Parse & Save"}
             </Button>
           </CardContent>
@@ -151,7 +157,8 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
               </div>
             ) : transactions.length === 0 ? (
               <p className="text-muted-foreground text-sm text-center py-8">
-                No transactions yet. Paste some bank statement text above to get started.
+                No transactions yet. Paste some bank statement text above to get
+                started.
               </p>
             ) : (
               <>
@@ -182,12 +189,16 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
                                 {txn.category}
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
+                              <span className="text-muted-foreground text-xs">
+                                —
+                              </span>
                             )}
                           </TableCell>
                           <TableCell
                             className={`text-right font-mono text-sm font-medium ${
-                              txn.type === "DEBIT" ? "text-destructive" : "text-green-600"
+                              txn.type === "DEBIT"
+                                ? "text-destructive"
+                                : "text-green-600"
                             }`}
                           >
                             {formatAmount(txn.amount, txn.currency, txn.type)}
