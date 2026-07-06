@@ -3,7 +3,13 @@ import { prisma, withOrgContext } from "@pocketvault/db";
 import { auth } from "./lib/auth.js";
 import { parseTransaction } from "./lib/parser.js";
 
-const PASSWORD = "password123";
+const PASSWORD = process.env.SEED_PASSWORD ?? "password123";
+if (!process.env.SEED_PASSWORD) {
+  console.warn(
+    "⚠️  SEED_PASSWORD env var not set — using default 'password123'. " +
+    "Set SEED_PASSWORD before seeding in any non-local environment.",
+  );
+}
 
 const USERS = [
   { email: "alice@pocketvault.local", name: "Alice Chen" },

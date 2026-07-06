@@ -4,10 +4,23 @@ import { RATE_LIMIT_CONSTANTS } from "./constants.js";
 
 type ExtractEnv = { Variables: { jwtPayload?: { userId?: string } } };
 
+// TRUSTED_PROXIES can be set as a comma-separated list of trusted proxy IPs/CIDRs.
+// When set, x-forwarded-for is only trusted if the direct peer is in the list,
+// preventing clients from spoofing the header to bypass rate limiting.
+const TRUSTED_PROXIES = process.env.TRUSTED_PROXIES
+  ? new Set(process.env.TRUSTED_PROXIES.split(",").map((s) => s.trim()))
+  : null;
+
 function clientIp(c: Context): string {
+  const peerIp = c.req.header("x-real-ip") ?? "local";
   const fwd = c.req.header("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  return c.req.header("x-real-ip") ?? "local";
+
+  // Only trust x-forwarded-for when the direct connection comes from a known proxy
+  if (fwd && (TRUSTED_PROXIES === null || TRUSTED_PROXIES.has(peerIp))) {
+    return fwd.split(",")[0]!.trim();
+  }
+
+  return peerIp;
 }
 
 export const authLimiter = rateLimiter({
