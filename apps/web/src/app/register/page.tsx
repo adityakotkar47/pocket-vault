@@ -40,7 +40,9 @@ export default function RegisterPage() {
       });
 
       if (result?.error) {
-        toast.success("Account created! Please sign in.");
+        toast.error(
+          "Account created but auto sign-in failed. Please sign in manually.",
+        );
         setDone(true);
         setTimeout(() => router.push("/login"), 1500);
         return;

@@ -1,18 +1,20 @@
 import type { CursorParts } from "@pocketvault/db";
 
 export function parseCursor(cursor: string): CursorParts | null {
-  const parts = cursor.split("_");
-  if (parts.length !== 2) return null;
+  // Split on the first underscore only so CUID2 ids containing underscores are preserved
+  const separatorIndex = cursor.indexOf("_");
+  if (separatorIndex === -1) return null;
 
-  const [createdAt, id] = parts;
+  const createdAt = cursor.slice(0, separatorIndex);
+  const id = cursor.slice(separatorIndex + 1);
+
   if (!createdAt || !id) return null;
 
-  try {
-    new Date(createdAt);
-    return { createdAt, id };
-  } catch {
-    return null;
-  }
+  // new Date() never throws — it returns an Invalid Date instead, so we must check isNaN
+  const parsed = new Date(createdAt);
+  if (isNaN(parsed.getTime())) return null;
+
+  return { createdAt, id };
 }
 
 export function buildCursorCondition(cursor: string) {
