@@ -4,13 +4,26 @@ import { apiFetch } from "@/lib/api";
 import { requireEnv } from "@/lib/env";
 import type { ExtractResult, ListResult } from "@pocketvault/db";
 
+type SplitInput = {
+  userEmail?: string;
+  pctg?: number;
+};
+
 export async function extractTransaction(
   text: string,
   accessToken: string,
+  split?: SplitInput,
 ): Promise<ExtractResult> {
+  const body: Record<string, unknown> = { text };
+
+  if (split?.userEmail && typeof split.pctg === "number") {
+    body.user_email = split.userEmail;
+    body.pctg = split.pctg;
+  }
+
   return apiFetch<ExtractResult>("/api/transactions/extract", accessToken, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(body),
   });
 }
 

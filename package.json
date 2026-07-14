@@ -27,5 +27,8 @@
     "db:generate": "bun run --filter '@pocketvault/db' generate",
     "db:studio": "bun run --filter '@pocketvault/db' studio",
     "db:seed": "bun run --filter '@pocketvault/api' seed"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2"
   }
 }

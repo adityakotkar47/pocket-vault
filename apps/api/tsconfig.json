@@ -1,6 +1,7 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "rootDir": "../..",
     "outDir": "./dist",
     "paths": {
       "@pocketvault/db": ["../../packages/db/src/client.ts"]

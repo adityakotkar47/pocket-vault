@@ -31,11 +31,28 @@ model Transaction {
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splits         Splits[]
 
   @@unique([organizationId, rawHash])
   @@index([organizationId, createdAt, id])
   @@index([userId])
   @@map("transaction")
+}
+
+model Splits {
+  id             String      @id @default(cuid())
+  transactionId  String
+  userId         String
+  percentage     Float
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([transactionId, userId])
+  @@index([transactionId])
+  @@index([userId])
+  @@map("split")
 }
 
 model User {
@@ -53,6 +70,7 @@ model User {
   members        Member[]
   invitations    Invitation[]
   transactions   Transaction[]
+  splits         Splits[]
 
   @@unique([email])
   @@map("user")

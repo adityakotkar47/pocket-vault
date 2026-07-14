@@ -9,5 +9,10 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  return <Dashboard accessToken={session.accessToken} />;
+  return (
+    <Dashboard
+      accessToken={session.accessToken}
+      currentUserEmail={session.user?.email ?? undefined}
+    />
+  );
 }

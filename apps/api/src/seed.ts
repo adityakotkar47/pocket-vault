@@ -43,12 +43,41 @@ async function ensureUser(email: string, name: string) {
 async function seed() {
   console.log("🌱  Seeding PocketVault…");
 
+  let sharedOrganizationId: string | null = null;
+
   for (const u of USERS) {
     const user = await ensureUser(u.email, u.name);
-    const organizationId = (user as { organizationId?: string | null })
-      .organizationId;
+    const organizationId: string | null =
+      u.email === USERS[0]?.email
+        ? ((user as { organizationId?: string | null }).organizationId ?? null)
+        : sharedOrganizationId;
     if (!organizationId) {
       throw new Error(`No organization provisioned for ${u.email}`);
+    }
+
+    if (!sharedOrganizationId) {
+      sharedOrganizationId = organizationId;
+    } else {
+      const existingMembership = await prisma.member.findFirst({
+        where: { userId: user.id },
+      });
+      if (existingMembership) {
+        await prisma.member.update({
+          where: { id: existingMembership.id },
+          data: { organizationId: sharedOrganizationId },
+        });
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { organizationId: sharedOrganizationId },
+      });
+    }
+
+    if (u.email === USERS[0]?.email) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { organizationId },
+      });
     }
 
     for (const rawText of SAMPLE_TEXTS) {

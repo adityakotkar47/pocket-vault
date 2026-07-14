@@ -12,7 +12,7 @@ ENV DATABASE_URL="postgresql://x:x@localhost:5432/x"
 
 RUN bun install --no-frozen-lockfile
 
-COPY tsconfig.base.json ./
+COPY tsconfig.json ./
 COPY apps/api ./apps/api
 COPY packages/db/src ./packages/db/src
 COPY packages/db/prisma.config.ts ./packages/db/

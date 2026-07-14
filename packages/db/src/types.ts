@@ -1,5 +1,6 @@
 export type TransactionData = {
   id: string;
+  ownerEmail: string;
   date: string;
   description: string;
   amount: string;
@@ -9,6 +10,13 @@ export type TransactionData = {
   category: string | null;
   confidence: number;
   createdAt: string;
+  split?: TransactionSplitData | null;
+};
+
+export type TransactionSplitData = {
+  userEmail: string;
+  percentage: number;
+  splitAmount: string | null;
 };
 
 export type ExtractResult = {

@@ -16,6 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { extractTransaction, listTransactions } from "@/app/actions";
 
 function formatAmount(
@@ -49,8 +51,72 @@ function formatDate(dateStr: string) {
   });
 }
 
-export function Dashboard({ accessToken }: { accessToken: string }) {
+function formatSplitAmount(amount: string | null, currency: string) {
+  if (amount === null) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(Number(amount));
+}
+
+function getViewerSplitPercentage(
+  txn: TransactionData,
+  currentUserEmail?: string,
+): number | null {
+  if (!txn.split) return null;
+  const percentage = txn.split.percentage;
+  if (percentage === null) return null;
+  if (!currentUserEmail) return 100 - percentage;
+  return txn.split.userEmail.toLowerCase() === currentUserEmail.toLowerCase()
+    ? percentage
+    : 100 - percentage;
+}
+
+function getSplitWithEmail(
+  txn: TransactionData,
+  currentUserEmail?: string,
+): string {
+  if (!txn.split) return "—";
+
+  const ownerEmail = txn.ownerEmail.toLowerCase();
+  const splitUserEmail = txn.split.userEmail.toLowerCase();
+  const viewerEmail = currentUserEmail?.toLowerCase();
+
+  if (viewerEmail === ownerEmail) {
+    return txn.split.userEmail;
+  }
+
+  if (viewerEmail === splitUserEmail) {
+    return txn.ownerEmail;
+  }
+
+  return txn.split.userEmail;
+}
+
+function getViewerSplitAmount(
+  txn: TransactionData,
+  currentUserEmail?: string,
+): string | null {
+  const percentage = getViewerSplitPercentage(txn, currentUserEmail);
+  if (percentage === null) return null;
+
+  const amount = Number(txn.amount);
+  if (!Number.isFinite(amount)) return null;
+
+  return (amount * (percentage / 100)).toFixed(2);
+}
+
+export function Dashboard({
+  accessToken,
+  currentUserEmail,
+}: {
+  accessToken: string;
+  currentUserEmail?: string;
+}) {
   const [rawText, setRawText] = useState("");
+  const [splitUserEmail, setSplitUserEmail] = useState("");
+  const [splitPctg, setSplitPctg] = useState("");
   const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -86,7 +152,25 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
     }
     startParsing(async () => {
       try {
-        const result = await extractTransaction(rawText, accessToken);
+        const splitUser = splitUserEmail.trim();
+        const splitPercentage =
+          splitPctg.trim() === "" ? null : Number(splitPctg);
+        const splitInput =
+          splitUser.length > 0 &&
+          splitPercentage !== null &&
+          Number.isFinite(splitPercentage)
+            ? {
+                userEmail: splitUser,
+                pctg: splitPercentage,
+              }
+            : undefined;
+
+        const result = await extractTransaction(
+          rawText,
+          accessToken,
+          splitInput,
+        );
+
         if (result.duplicate) {
           toast.info("Duplicate transaction — already saved");
         } else {
@@ -96,6 +180,8 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
           setTransactions((prev) => [result.data, ...prev]);
         }
         setRawText("");
+        setSplitUserEmail("");
+        setSplitPctg("");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Extraction failed");
       }
@@ -134,6 +220,31 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
             />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="split-user-email">Split with email</Label>
+                <Input
+                  id="split-user-email"
+                  type="email"
+                  placeholder="teammate@example.com"
+                  value={splitUserEmail}
+                  onChange={(e) => setSplitUserEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="split-pctg">Split percentage</Label>
+                <Input
+                  id="split-pctg"
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  placeholder="25"
+                  value={splitPctg}
+                  onChange={(e) => setSplitPctg(e.target.value)}
+                />
+              </div>
+            </div>
             <Button
               onClick={handleExtract}
               disabled={isParsing}
@@ -168,6 +279,8 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Description</TableHead>
+                        <TableHead>Split With</TableHead>
+                        <TableHead className="text-right">Your Split</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead className="text-right">Balance</TableHead>
@@ -182,6 +295,15 @@ export function Dashboard({ accessToken }: { accessToken: string }) {
                           </TableCell>
                           <TableCell className="max-w-[240px] truncate text-sm">
                             {txn.description}
+                          </TableCell>
+                          <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground">
+                            {getSplitWithEmail(txn, currentUserEmail)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium">
+                            {formatSplitAmount(
+                              getViewerSplitAmount(txn, currentUserEmail),
+                              txn.currency,
+                            )}
                           </TableCell>
                           <TableCell>
                             {txn.category ? (
